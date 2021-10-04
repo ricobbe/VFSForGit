@@ -10,6 +10,7 @@ using System.Threading;
 
 namespace GVFS.Virtualization.FileSystem
 {
+    // two known subclasses: MockFileSystemVirtualizer (GVFS.UnitTests), and GVFS.Platform.Windows.WindowsFileSystemVirtualizer
     public abstract class FileSystemVirtualizer : IDisposable
     {
         public const byte PlaceholderVersion = 1;
@@ -141,6 +142,7 @@ namespace GVFS.Virtualization.FileSystem
         /// </remarks>
         protected bool CanCreatePlaceholder()
         {
+            // gitCommand describes the git operation that currently holds the lock
             GitCommandLineParser gitCommand = new GitCommandLineParser(this.Context.Repository.GVFSLock.GetLockedGitCommand());
             return
                 !gitCommand.IsValidGitCommand ||

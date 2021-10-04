@@ -5,6 +5,7 @@ using System.IO;
 
 namespace GVFS.Common
 {
+    // The only subclass that I can find is GVFS.Common.GVFSEnlistment.
     public abstract class Enlistment
     {
         protected Enlistment(
@@ -52,6 +53,8 @@ namespace GVFS.Common
             this.Authentication = authentication ?? new GitAuthentication(gitProcess, this.RepoUrl);
         }
 
+        // Appears to be root of enlistment, like e:\os, which corresponds to parent of
+        // WorkingDirectoryRoot.
         public string EnlistmentRoot { get; }
 
         // Path to the root of the working (i.e. "src") directory.
