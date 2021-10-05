@@ -42,9 +42,6 @@ namespace GVFS.Virtualization
         private FileSystemVirtualizer fileSystemVirtualizer;
         private FileProperties logsHeadFileProperties;
 
-        private GitStatusCache gitStatusCache;
-        private bool enableGitStatusCache;
-
         public FileSystemCallbacks(
             GVFSContext context,
             GVFSGitObjects gitObjects,
@@ -54,8 +51,7 @@ namespace GVFS.Virtualization
             BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner,
             FileSystemVirtualizer fileSystemVirtualizer,
             IPlaceholderCollection placeholderDatabase,
-            ISparseCollection sparseCollection,
-            GitStatusCache gitStatusCache = null)
+            ISparseCollection sparseCollection)
         {
             this.logsHeadFileProperties = null;
 
@@ -110,12 +106,6 @@ namespace GVFS.Virtualization
                     Path.Combine(context.Enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.BackgroundFileSystemTasks));
             }
 
-            this.enableGitStatusCache = gitStatusCache != null;
-
-            // If the status cache is not enabled, create a dummy GitStatusCache that will never be initialized
-            // This lets us from having to add null checks to callsites into GitStatusCache.
-            this.gitStatusCache = gitStatusCache ?? new GitStatusCache(context, TimeSpan.Zero);
-
             this.logsHeadPath = Path.Combine(this.context.Enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Logs.Head);
 
             EventMetadata metadata = new EventMetadata();
@@ -162,11 +152,6 @@ namespace GVFS.Virtualization
 
             this.GitIndexProjection.Initialize(this.backgroundFileSystemTaskRunner);
 
-            if (this.enableGitStatusCache)
-            {
-                this.gitStatusCache.Initialize();
-            }
-
             this.backgroundFileSystemTaskRunner.Start();
 
             if (!this.fileSystemVirtualizer.TryStart(out error))
@@ -179,10 +164,6 @@ namespace GVFS.Virtualization
 
         public void Stop()
         {
-            // Shutdown the GitStatusCache before other
-            // components that it depends on.
-            this.gitStatusCache.Shutdown();
-
             this.fileSystemVirtualizer.PrepareToStop();
             this.backgroundFileSystemTaskRunner.Shutdown();
             this.GitIndexProjection.Shutdown();
@@ -216,12 +197,6 @@ namespace GVFS.Virtualization
                 this.modifiedPaths = null;
             }
 
-            if (this.gitStatusCache != null)
-            {
-                this.gitStatusCache.Dispose();
-                this.gitStatusCache = null;
-            }
-
             if (this.backgroundFileSystemTaskRunner != null)
             {
                 this.backgroundFileSystemTaskRunner.Dispose();
@@ -246,11 +221,6 @@ namespace GVFS.Virtualization
             if (!this.GitIndexProjection.IsProjectionParseComplete())
             {
                 denyMessage = "Waiting for GVFS to parse index and update placeholder files";
-                return false;
-            }
-
-            if (!this.gitStatusCache.IsReadyForExternalAcquireLockRequests(requester, out denyMessage))
-            {
                 return false;
             }
 
@@ -281,11 +251,6 @@ namespace GVFS.Virtualization
             metadata.Add("ModifiedPathsCount", this.modifiedPaths.Count);
             metadata.Add("FilePlaceholderCount", this.placeholderDatabase.GetFilePlaceholdersCount());
             metadata.Add("FolderPlaceholderCount", this.placeholderDatabase.GetFolderPlaceholdersCount());
-
-            if (this.gitStatusCache.WriteTelemetryandReset(metadata))
-            {
-                logToFile = true;
-            }
 
             metadata.Add(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
             metadata.Add(
@@ -393,14 +358,6 @@ namespace GVFS.Virtualization
 
         public void InvalidateGitStatusCache()
         {
-            this.gitStatusCache.Invalidate();
-
-            // If there are background tasks queued up, then it will be
-            // refreshed after they have been processed.
-            if (this.backgroundFileSystemTaskRunner.IsEmpty)
-            {
-                this.gitStatusCache.RefreshAsynchronously();
-            }
         }
 
         public virtual void OnLogsHeadChange()
@@ -1001,7 +958,6 @@ namespace GVFS.Virtualization
         private FileSystemTaskResult PostBackgroundOperation()
         {
             this.modifiedPaths.WriteAllEntriesAndFlush();
-            this.gitStatusCache.RefreshAsynchronously();
             return this.GitIndexProjection.CloseIndex();
         }
 

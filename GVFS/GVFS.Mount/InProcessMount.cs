@@ -627,16 +627,6 @@ namespace GVFS.Mount
             this.gitObjects = new GVFSGitObjects(this.context, objectRequestor);
             FileSystemVirtualizer virtualizer = this.CreateOrReportAndExit(() => GVFSPlatformLoader.CreateFileSystemVirtualizer(this.context, this.gitObjects), "Failed to create src folder virtualizer");
 
-            GitStatusCache gitStatusCache = (!this.context.Unattended && GVFSPlatform.Instance.IsGitStatusCacheSupported()) ? new GitStatusCache(this.context, this.gitStatusCacheConfig) : null;
-            if (gitStatusCache != null)
-            {
-                this.tracer.RelatedInfo("Git status cache enabled. Backoff time: {0}ms", this.gitStatusCacheConfig.BackoffTime.TotalMilliseconds);
-            }
-            else
-            {
-                this.tracer.RelatedInfo("Git status cache is not enabled");
-            }
-
             this.gvfsDatabase = this.CreateOrReportAndExit(() => new GVFSDatabase(this.context.FileSystem, this.context.Enlistment.EnlistmentRoot, new SqliteDatabase()), "Failed to create database connection");
             this.fileSystemCallbacks = this.CreateOrReportAndExit(
                 () =>
@@ -650,8 +640,7 @@ namespace GVFS.Mount
                         backgroundFileSystemTaskRunner: null,
                         fileSystemVirtualizer: virtualizer,
                         placeholderDatabase: new PlaceholderTable(this.gvfsDatabase),
-                        sparseCollection: new SparseTable(this.gvfsDatabase),
-                        gitStatusCache: gitStatusCache);
+                        sparseCollection: new SparseTable(this.gvfsDatabase));
                 }, "Failed to create src folder callback listener");
             this.maintenanceScheduler = this.CreateOrReportAndExit(() => new GitMaintenanceScheduler(this.context, this.gitObjects), "Failed to start maintenance scheduler");
 
